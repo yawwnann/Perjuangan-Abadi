@@ -3,49 +3,31 @@ name: Auto Commit
 on:
   schedule:
     # Menjalankan setiap hari pukul 00:00 UTC
-    # Anda bisa menyesuaikan jadwal ini. Gunakan https://crontab.guru/ untuk bantuan.
     - cron: "0 0 * * *"
-  # Pemicu manual (opsional, untuk pengujian)
-  # Dengan workflow_dispatch, Anda bisa menjalankan workflow ini secara manual dari tab Actions di GitHub.
   workflow_dispatch:
 
 jobs:
   auto_commit_job:
     runs-on: ubuntu-latest
-    # Izin yang diperlukan agar GITHUB_TOKEN bisa melakukan push ke repositori.
-    # Tanpa ini, git push akan gagal karena masalah perizinan.
     permissions:
-      contents: write # Izin untuk menulis ke konten repositori (termasuk push)
+      contents: write
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4 # Selalu gunakan versi terbaru jika memungkinkan
-        # Opsional: Jika Anda ingin melakukan commit ke branch tertentu dan perlu mengambil token
-        # dengan izin yang lebih luas daripada GITHUB_TOKEN bawaan (jarang diperlukan untuk auto-commit sederhana).
-        # with:
-        #   token: ${{ secrets.YOUR_PERSONAL_ACCESS_TOKEN }} # Jika menggunakan PAT
+        uses: actions/checkout@v4
+        # Penting: Fetch semua history agar rebase atau merge berjalan dengan baik
+        with:
+          fetch-depth: 0 # Mengambil semua history untuk semua branch dan tag
 
-      # Langkah PENTING: Modifikasi file agar ada perubahan untuk di-commit.
-      # Jika tidak ada langkah yang mengubah file, tidak akan ada yang di-commit.
-      # Contoh: Memperbarui file dengan tanggal saat ini.
       - name: Create or Update a File for Commit
         run: |
           echo "Pembaruan terakhir pada $(date)" > last_update.txt
-          # Anda bisa menambahkan perintah lain di sini untuk memodifikasi file lain
-          # misalnya, menjalankan skrip yang menghasilkan konten baru.
 
       - name: Stage and Commit Changes
         run: |
-          # Konfigurasi identitas Git untuk commit yang dibuat oleh Action ini
-          git config --global user.name 'Yawwnann (Bot)' # Nama bisa disesuaikan
-          git config --global user.email 'c0478592@gmail.com' # Pastikan email ini valid atau gunakan email no-reply dari GitHub
-
-          # Tambahkan semua perubahan ke staging area.
-          # Hati-hati jika ada file yang tidak diinginkan ikut ter-commit.
-          # Gunakan .gitignore untuk mengabaikan file yang tidak perlu.
+          git config --global user.name 'Yawwnann (Bot)'
+          git config --global user.email 'c0478592@gmail.com' # Ganti dengan email yang sesuai
           git add -A
-
-          # Hanya commit jika ada perubahan yang di-stage
           if ! git diff --staged --quiet; then
             git commit -m "Auto-commit: Pembaruan terjadwal pada $(date)"
             echo "Perubahan berhasil di-commit."
@@ -53,43 +35,24 @@ jobs:
             echo "Tidak ada perubahan untuk di-commit."
           fi
 
-      - name: Push Changes
+      - name: Pull Remote Changes and Push
         run: |
-          # Cek apakah ada commit baru yang perlu di-push.
-          # Ini adalah cara sederhana untuk memeriksa apakah ada commit baru di branch lokal
-          # yang belum ada di remote.
-          # `git rev-parse HEAD` mendapatkan SHA dari commit lokal terakhir.
-          # `git rev-parse @{u}` atau `git rev-parse origin/$(git rev-parse --abbrev-ref HEAD)` mendapatkan SHA dari commit remote terakhir.
-          # Namun, jika commit baru saja dibuat di langkah sebelumnya dan berhasil, kita bisa langsung push.
-          
-          # Jika langkah commit di atas berhasil membuat commit baru, kita bisa langsung push.
-          # Kondisi `if git log -1 --pretty=%B | grep -q "Auto-commit"; then`
-          # yang Anda gunakan sebelumnya bisa berfungsi, tapi mungkin lebih sederhana
-          # untuk langsung push jika kita yakin commit telah dibuat.
-          # Untuk lebih aman, kita bisa cek apakah ada perbedaan dengan remote.
-          
-          # Cek apakah ada commit yang dibuat di langkah sebelumnya
-          # Jika output dari `git status --porcelain` kosong setelah commit, berarti tidak ada commit baru atau semua sudah di-commit.
-          # Namun, cara yang lebih baik adalah jika langkah commit berhasil, kita asumsikan ada yang di-push.
-          
-          # Kita akan menyederhanakan: jika ada commit baru (dari langkah sebelumnya), maka push.
-          # Langkah "Stage and Commit Changes" sudah memiliki logika untuk hanya commit jika ada perubahan.
-          # Jadi, jika ada commit, kita push.
-          
-          # Cek apakah ada commit yang baru saja dibuat (dengan pesan "Auto-commit")
-          # Ini akan memastikan kita hanya push commit yang dibuat oleh workflow ini.
-          # Namun, jika tidak ada perubahan, tidak akan ada commit, dan tidak ada yang di-push.
+          # Cek apakah ada commit yang baru saja dibuat oleh workflow ini
           if git log -1 --pretty=%B | grep -q "Auto-commit"; then
+            echo "Ada commit baru dari 'Auto-commit'."
+
+            # Sinkronkan dengan perubahan dari remote sebelum push
+            # Menggunakan rebase untuk menjaga history lebih linear.
+            # Jika ada konflik, rebase akan gagal dan workflow akan error (ini perilaku yang diinginkan agar Anda tahu ada konflik).
+            # Anda bisa mengganti `git pull --rebase` dengan `git pull` (yang akan melakukan merge) jika lebih sesuai.
+            echo "Melakukan pull dari remote dengan rebase..."
+            git pull --rebase # Atau git pull (untuk merge)
+
             echo "Mendorong perubahan ke remote..."
             git push
             echo "Perubahan berhasil di-push."
           else
-            # Ini bisa terjadi jika tidak ada perubahan, atau jika commit terakhir bukan dari auto-commit
-            # (misalnya jika ada kegagalan sebelum push pada run sebelumnya dan commit manual dilakukan).
-            # Jika tidak ada perubahan, pesan "Tidak ada perubahan untuk di-commit." sudah muncul sebelumnya.
             echo "Tidak ada commit baru dari 'Auto-commit' untuk di-push atau tidak ada perubahan."
           fi
         env:
-          # GITHUB_TOKEN disediakan secara otomatis oleh GitHub Actions.
-          # Token ini digunakan untuk otentikasi saat melakukan git push.
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
