@@ -21,7 +21,9 @@ jobs:
 
       - name: Create or Update a File for Commit
         run: |
-          echo "Pembaruan terakhir pada $(date)" > last_update.txt
+          # Menggunakan '>>' untuk menambahkan ke file (append), bukan menimpa ('>')
+          # Ini akan mengurangi kemungkinan konflik jika file ini adalah semacam log.
+          echo "Pembaruan terakhir pada $(date)" >> last_update.txt
 
       - name: Stage and Commit Changes
         run: |
@@ -43,9 +45,10 @@ jobs:
 
             # Sinkronkan dengan perubahan dari remote sebelum push
             # Menggunakan rebase untuk menjaga history lebih linear.
-            # Jika ada konflik, rebase akan gagal dan workflow akan error (ini perilaku yang diinginkan agar Anda tahu ada konflik).
-            # Anda bisa mengganti `git pull --rebase` dengan `git pull` (yang akan melakukan merge) jika lebih sesuai.
             echo "Melakukan pull dari remote dengan rebase..."
+            # Jika Anda terus mengalami konflik dengan rebase bahkan setelah append,
+            # Anda bisa mencoba 'git pull' (merge) sebagai alternatif,
+            # atau mempertimbangkan strategi resolusi konflik otomatis jika sesuai.
             git pull --rebase # Atau git pull (untuk merge)
 
             echo "Mendorong perubahan ke remote..."
