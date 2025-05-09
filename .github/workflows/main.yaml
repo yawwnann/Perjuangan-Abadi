@@ -1,0 +1,48 @@
+name: Auto Commit
+
+on:
+  schedule:
+    # Menjalankan setiap hari pukul 00:00 UTC
+    - cron: "0 0 * * *"
+  # Anda juga bisa menambahkan trigger lain, misalnya push ke branch tertentu
+  # push:
+  #   branches:
+  #     - main
+
+jobs:
+  auto_commit_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4 # Selalu gunakan versi terbaru jika memungkinkan
+
+      # Langkah Opsional: Jika Anda perlu membuat atau memodifikasi file secara otomatis
+      # - name: Create or Update File
+      #   run: |
+      #     echo "Konten file yang diupdate otomatis pada $(date)" > auto_generated_file.txt
+
+      - name: Stage and Commit Changes
+        run: |
+          git config --global user.name 'Yawwnann' # Ganti dengan nama bot/user Anda
+          git config --global user.email 'c0478592@gmail.com' # Ganti dengan email bot/user Anda
+          git add -A # Menambahkan semua perubahan (hati-hati jika ada file yang tidak diinginkan)
+          # Hanya commit jika ada perubahan
+          if ! git diff --staged --quiet; then
+            git commit -m "Auto-commit: Perubahan terjadwal $(date)"
+          else
+            echo "Tidak ada perubahan untuk di-commit."
+          fi
+
+      - name: Push Changes
+        # Hanya push jika ada commit baru
+        # Perlu token dengan hak tulis jika checkout menggunakan GITHUB_TOKEN default pada event selain push
+        # Untuk commit dari action ke repository itu sendiri, GITHUB_TOKEN biasanya cukup
+        # Jika Anda membuat perubahan yang memicu workflow lain, Anda mungkin perlu Personal Access Token (PAT)
+        run: |
+          if git log -1 --pretty=%B | grep -q "Auto-commit"; then
+            git push
+          else
+            echo "Tidak ada commit baru untuk di-push."
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Token bawaan GitHub
